@@ -1,0 +1,56 @@
+{
+  "name": "@shdwsdk/cli",
+  "version": "1.2.1",
+  "description": "Interactive CLI setup wizard for @shdwsdk/sdk \u2014 configures environment variables, generates boilerplate, and verifies telemetry connectivity.",
+  "homepage": "https://www.shdwsdk.ai/docs",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/shdwaibuild/shdwsdk-js.git",
+    "directory": "packages/cli"
+  },
+  "bugs": {
+    "url": "https://github.com/shdwaibuild/shdwsdk-js/issues"
+  },
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "bin": {
+    "shdw-init": "dist/bin.js",
+    "shdw": "dist/bin.js"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "src"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@shdwsdk/sdk": "^1.2.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typescript": "^5.6.3",
+    "vitest": "^2.1.5"
+  },
+  "keywords": [
+    "shdw",
+    "shdwsdk",
+    "cli",
+    "ai-carbon",
+    "scope-3",
+    "ai-bom"
+  ],
+  "license": "MIT",
+  "publishConfig": {
+    "access": "public"
+  }
+}

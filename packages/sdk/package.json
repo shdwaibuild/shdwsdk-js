@@ -1,0 +1,72 @@
+{
+  "name": "@shdwsdk/sdk",
+  "version": "1.7.1",
+  "description": "Resilient, non-blocking Scope 3 AI carbon & energy telemetry SDK for OpenAI, Anthropic, and Google Gemini.",
+  "homepage": "https://www.shdwsdk.ai/docs",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/shdwaibuild/shdwsdk-js.git",
+    "directory": "packages/sdk"
+  },
+  "bugs": {
+    "url": "https://github.com/shdwaibuild/shdwsdk-js/issues"
+  },
+  "type": "module",
+  "main": "./dist/cjs/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "bin": {
+    "shdw-sdk": "dist/bin.js"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/cjs/index.js",
+      "default": "./dist/index.js"
+    },
+    "./scanner": {
+      "types": "./dist/scanner.d.ts",
+      "import": "./dist/scanner.js",
+      "require": "./dist/cjs/scanner.js",
+      "default": "./dist/scanner.js"
+    },
+    "./database.types": {
+      "types": "./dist/database.types.d.ts",
+      "import": "./dist/database.types.js",
+      "require": "./dist/cjs/database.types.js",
+      "default": "./dist/database.types.js"
+    }
+  },
+  "files": [
+    "dist",
+    "src",
+    "vendor/ecologits/LICENSE",
+    "vendor/ecologits/README.md"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json && tsc -p tsconfig.cjs.json && node -e \"require('fs').writeFileSync('dist/cjs/package.json', JSON.stringify({type:'commonjs'}))\"",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run",
+    "sync:ecologits": "node scripts/sync-ecologits.mjs"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.3",
+    "vitest": "^2.1.5"
+  },
+  "keywords": [
+    "ai-carbon",
+    "scope-3",
+    "ecologits",
+    "ml-energy",
+    "ai-bom",
+    "openai",
+    "anthropic",
+    "gemini",
+    "telemetry"
+  ],
+  "license": "MIT",
+  "publishConfig": {
+    "access": "public"
+  }
+}

@@ -1,0 +1,15 @@
+{
+  "name": "shdwsdk-js",
+  "private": true,
+  "description": "SHDWsdk JavaScript/TypeScript SDK and CLI",
+  "workspaces": [
+    "packages/sdk",
+    "packages/cli"
+  ],
+  "scripts": {
+    "build": "npm run build --workspace=@shdwsdk/sdk && npm run build --workspace=@shdwsdk/cli",
+    "typecheck": "npm run build --workspace=@shdwsdk/sdk && npm run typecheck --workspaces",
+    "test": "npm run build --workspace=@shdwsdk/sdk && npm test --workspaces"
+  },
+  "license": "MIT"
+}
