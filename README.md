@@ -36,7 +36,7 @@ or
 npm install @shdwsdk/sdk
 ```
 
-Works on Node.js, Deno, Bun, Edge runtimes and the browser. The runtime has no dependencies.
+Works on Node.js 20+, Deno, Bun, Edge runtimes and the browser. The runtime has no dependencies.
 
 ## Usage
 
