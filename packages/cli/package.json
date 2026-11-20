@@ -1,6 +1,6 @@
 {
   "name": "@shdwsdk/cli",
-  "version": "1.2.1",
+  "version": "1.2.2",
   "description": "Interactive CLI setup wizard for @shdwsdk/sdk \u2014 configures environment variables, generates boilerplate, and verifies telemetry connectivity.",
   "homepage": "https://www.shdwsdk.ai/docs",
   "repository": {

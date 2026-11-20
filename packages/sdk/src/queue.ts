@@ -79,7 +79,7 @@ export interface ShdwDeliveryStats {
   coverageRatio: number;
 }
 
-export const SDK_VERSION = "1.7.1";
+export const SDK_VERSION = "1.7.2";
 
 const DEFAULT_INGEST_ENDPOINT =
   "https://www.shdwsdk.ai/api/v1/ingest-telemetry";
