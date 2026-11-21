@@ -7,10 +7,8 @@
 
 import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
-import {
-  resolveGridRegionFactor,
-  resolveModelCoefficient,
-} from "@shdwsdk/sdk";
+import { resolveGridRegionFactor } from "@shdwsdk/sdk";
+import { resolveModelCoefficient } from "@shdwsdk/energy-model";
 
 export interface GenerateBoilerplateParams {
   cwd: string;

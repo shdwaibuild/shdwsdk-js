@@ -6,21 +6,18 @@
 // - Never throws unhandled rejections, lags, or interrupts the host application.
 // ============================================================================
 
-import type { AIProvider, EuAiRiskTier } from "./database.types.js";
+import type { AIHosting, AIOperation, AIProvider, EuAiRiskTier } from "./database.types.js";
 
+/**
+ * One telemetry event as sent to the ingest API. Energy and carbon are not
+ * part of the payload: the ingest server computes them (EcoLogits model,
+ * organization grid region) and stores them with the event.
+ */
 export interface ShdwTelemetryEvent {
   model_name: string;
   provider: AIProvider;
   prompt_tokens: number;
   completion_tokens: number;
-  estimated_energy_kwh: number;
-  /** Lower/upper bound of the energy estimate (kWh); the server recomputes these. */
-  estimated_energy_kwh_min?: number;
-  estimated_energy_kwh_max?: number;
-  /** How the model id was resolved against the EcoLogits catalog. */
-  energy_model_match?: "exact" | "alias" | "normalized" | "family" | "fallback";
-  energy_methodology?: string;
-  carbon_gco2e: number;
   /** Omitted when not configured: the server uses the organization's default region. */
   grid_region?: string;
   grid_intensity_gco2_kwh: number;
@@ -37,10 +34,27 @@ export interface ShdwTelemetryEvent {
   eu_ai_risk_tier?: EuAiRiskTier;
   /** Your customer's pseudonymous account id (per-customer Scope 3 statements). */
   customer_ref?: string;
+  /** A second attribution level under the customer (a matter, case or project id). */
+  matter_ref?: string;
+  /** Groups the calls of one multi-step agent run. */
+  trace_id?: string;
+  /** Partner keys only: the client organization (slug) this call belongs to. */
+  org_slug?: string;
+  workflow_name?: string;
+  hosting?: AIHosting;
+  operation?: AIOperation;
+  audio_seconds?: number;
+  image_count?: number;
 }
 
 export interface ShdwQueueOptions {
   apiKey: string;
+  /**
+   * Data region of your SHDWsdk organization: "us" (default) or "eu". Use the
+   * region shown in Settings → Data; a key only works in its own region.
+   */
+  region?: ShdwDataRegion;
+  /** Overrides the region's endpoint (e.g. a private relay). */
   endpoint?: string;
   /** Maximum network timeout in ms. Clamped to 1500ms per architectural rule. */
   timeoutMs?: number;
@@ -105,10 +119,16 @@ export interface ShdwDeliveryStats {
   coverageRatio: number;
 }
 
-export const SDK_VERSION = "1.8.0";
+export const SDK_VERSION = "2.0.0";
 
-const DEFAULT_INGEST_ENDPOINT =
-  "https://www.shdwsdk.ai/api/v1/ingest-telemetry";
+/** Where telemetry is stored. "eu" keeps it in Frankfurt (eu-central-1). */
+export type ShdwDataRegion = "us" | "eu";
+
+export const INGEST_ENDPOINTS: Record<ShdwDataRegion, string> = {
+  us: "https://www.shdwsdk.ai/api/v1/ingest-telemetry",
+  eu: "https://www.shdwsdk.ai/eu/api/v1/ingest-telemetry",
+};
+const DEFAULT_INGEST_ENDPOINT = INGEST_ENDPOINTS.us;
 const MAX_ALLOWED_TIMEOUT_MS = 1500;
 /** Counters ride along with a batch at most this often... */
 const REPORT_WITH_BATCH_MS = 60_000;
@@ -145,7 +165,7 @@ export class ResilientTelemetryQueue {
 
   constructor(options: ShdwQueueOptions) {
     this.apiKey = options.apiKey;
-    this.endpoint = options.endpoint ?? DEFAULT_INGEST_ENDPOINT;
+    this.endpoint = options.endpoint ?? (options.region ? INGEST_ENDPOINTS[options.region] : undefined) ?? DEFAULT_INGEST_ENDPOINT;
     // Enforce architectural rule: network timeout never exceeds 1500ms
     const requestedTimeout = options.timeoutMs ?? MAX_ALLOWED_TIMEOUT_MS;
     this.timeoutMs = Math.min(

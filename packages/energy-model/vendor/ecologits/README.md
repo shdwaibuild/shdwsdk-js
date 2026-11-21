@@ -17,7 +17,7 @@ To update:
 ```bash
 pip download ecologits==<version> --no-deps -d /tmp/eco
 unzip -o /tmp/eco/ecologits-*.whl 'ecologits/data/models.json' -d /tmp/eco
-cp /tmp/eco/ecologits/data/models.json packages/sdk/vendor/ecologits/models.json
+cp /tmp/eco/ecologits/data/models.json packages/energy-model/vendor/ecologits/models.json
 # bump ECOLOGITS_VERSION in scripts/sync-ecologits.mjs, then:
-npm run sync:ecologits --workspace=@shdwsdk/sdk
+npm run sync:ecologits --workspace=@shdwsdk/energy-model
 ```

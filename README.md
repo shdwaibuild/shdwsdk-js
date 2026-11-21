@@ -93,6 +93,7 @@ finds AI SDKs, models and vector databases declared in your manifests, so your A
 | Input / output token counts | Completions |
 | Grid region and workload name you configure | API keys for your AI providers |
 | Optional one-way prompt fingerprint (SHA-256) | User emails or personal data |
+| Delivery counters: delivered, dropped by reason, retried | |
 | Optional customer reference you choose | |
 
 ## Built to stay out of your way
@@ -100,17 +101,37 @@ finds AI SDKs, models and vector databases declared in your manifests, so your A
 - **Off the request path.** Events are queued and sent in the background, so your AI calls never wait for telemetry.
 - **Fail-silent.** Delivery has a hard 1.5 s timeout and never throws into your code. If SHDWsdk is unreachable, your app doesn't notice.
 - **Retries with backoff.** Transient 5xx and 429 responses are retried; `getDeliveryStats()` shows what happened.
+- **Visible drop rates.** From 1.8.0 the SDK sends its delivery counters (counts only) about once a minute, so the [developer console](https://www.shdwsdk.ai/docs/developer-console) can show exactly what never arrived. Opt out with `deliveryReports: false`.
 
 ## Methodology
 
-Energy estimates use the open [EcoLogits](https://ecologits.ai) model (vendored under [`packages/sdk/vendor/ecologits`](packages/sdk/vendor/ecologits), MPL-2.0), data center PUE, and grid carbon intensity per region. The SDK computes a local estimate, and SHDWsdk recomputes every figure server-side, so a modified client can't misreport its numbers. Full details: [methodology](https://www.shdwsdk.ai/docs/scope3-methodology-eu-regions).
+The SDK sends model IDs, token counts and your grid region. SHDWsdk computes energy and carbon for every event on the server, using the open [EcoLogits](https://ecologits.ai) model, data center PUE and grid carbon intensity per region, so a modified client can't misreport its numbers and methodology updates apply without upgrading the SDK. Full details: [methodology](https://www.shdwsdk.ai/docs/scope3-methodology-eu-regions).
+
+Want the same estimates locally (in a CLI, a dashboard or a what-if tool)? Install the optional [`@shdwsdk/energy-model`](https://github.com/shdwaibuild/shdwsdk-js/tree/main/packages/energy-model) package.
+
+## Upgrading from 1.x
+
+2.0 removes the client-side energy model from this package. Your telemetry code doesn't change: dashboards, reports and AI-BOMs show the same server-computed numbers as before.
+
+If you called `calculateFootprint`, `estimateInferenceEnergy`, `resolveEnergyModel`, `resolveModelCoefficient`, `MODEL_ENERGY_COEFFICIENTS`, `ENERGY_MODEL_CATALOG` or `ENERGY_METHODOLOGY` directly, install `@shdwsdk/energy-model` and import them from there:
+
+```bash
+npm install @shdwsdk/energy-model
+```
+
+```ts
+import { calculateFootprint } from "@shdwsdk/energy-model";
+```
+
+`GRID_REGION_FACTORS` and `resolveGridRegionFactor` stay in `@shdwsdk/sdk`.
 
 ## Packages
 
 | Package | Description |
 |---|---|
-| [`@shdwsdk/sdk`](packages/sdk) | Telemetry client, energy model, AI-BOM compilers (CycloneDX / SPDX), manifest scanner |
-| [`@shdwsdk/cli`](packages/cli) | `shdw-init` setup wizard: writes env vars, generates boilerplate, checks connectivity |
+| [`@shdwsdk/sdk`](https://github.com/shdwaibuild/shdwsdk-js/tree/main/packages/sdk) | Telemetry client, AI-BOM compilers (CycloneDX / SPDX), manifest scanner. MIT, zero dependencies |
+| [`@shdwsdk/energy-model`](https://github.com/shdwaibuild/shdwsdk-js/tree/main/packages/energy-model) | Optional client-side energy and carbon estimates (EcoLogits methodology) |
+| [`@shdwsdk/cli`](https://github.com/shdwaibuild/shdwsdk-js/tree/main/packages/cli) | `shdw-init` setup wizard: writes env vars, generates boilerplate, checks connectivity |
 
 ## Development
 
@@ -122,8 +143,8 @@ npm test
 
 ## Contributing
 
-Issues and pull requests are welcome; we check them weekly. For security issues, see [SECURITY.md](SECURITY.md).
+Issues and pull requests are welcome; we check them weekly. For security issues, see [SECURITY.md](https://github.com/shdwaibuild/shdwsdk-js/blob/main/SECURITY.md).
 
 ## License
 
-[MIT](LICENSE). The vendored EcoLogits data is MPL-2.0.
+[MIT](LICENSE). `@shdwsdk/energy-model` has its own license; see that package.

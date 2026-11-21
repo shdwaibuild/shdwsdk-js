@@ -1,0 +1,100 @@
+# Publishes @shdwsdk/sdk, @shdwsdk/energy-model and @shdwsdk/cli to npm from
+# this public repository, with npm provenance, when a release tag is pushed:
+#
+#   sdk-v2.0.0             -> @shdwsdk/sdk
+#   energy-model-v1.0.0    -> @shdwsdk/energy-model
+#   cli-v1.3.0             -> @shdwsdk/cli
+#
+# Authentication uses npm trusted publishing (OIDC): no npm token is stored in
+# GitHub. Each package must list this repository, this workflow file and the
+# "npm-release" environment as its trusted publisher on npmjs.com. The
+# "npm-release" environment should require a reviewer, so every publish needs
+# a human approval. See RELEASING.md.
+name: Release
+
+on:
+  push:
+    tags:
+      - "sdk-v*"
+      - "energy-model-v*"
+      - "cli-v*"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    environment: npm-release
+    permissions:
+      contents: read
+      id-token: write # OIDC token for npm trusted publishing and provenance
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          registry-url: https://registry.npmjs.org
+
+      - name: Use an npm with trusted publishing support
+        run: npm install -g npm@11
+
+      - name: Resolve package from tag
+        id: pkg
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          case "$TAG" in
+            sdk-v*)          name=@shdwsdk/sdk;          dir=packages/sdk;          version="${TAG#sdk-v}" ;;
+            energy-model-v*) name=@shdwsdk/energy-model; dir=packages/energy-model; version="${TAG#energy-model-v}" ;;
+            cli-v*)          name=@shdwsdk/cli;          dir=packages/cli;          version="${TAG#cli-v}" ;;
+            *) echo "::error::Unknown release tag $TAG"; exit 1 ;;
+          esac
+          actual=$(node -p "require('./$dir/package.json').version")
+          if [ "$actual" != "$version" ]; then
+            echo "::error::Tag $TAG does not match $dir/package.json version $actual"
+            exit 1
+          fi
+          if [ "$name" = "@shdwsdk/sdk" ]; then
+            sdk_const=$(sed -n 's/^export const SDK_VERSION = "\(.*\)";/\1/p' packages/sdk/src/queue.ts)
+            if [ "$sdk_const" != "$version" ]; then
+              echo "::error::SDK_VERSION in packages/sdk/src/queue.ts is $sdk_const, expected $version"
+              exit 1
+            fi
+          fi
+          echo "name=$name" >> "$GITHUB_OUTPUT"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build
+
+      - name: Check the tarball contents
+        env:
+          NAME: ${{ steps.pkg.outputs.name }}
+        run: |
+          npm pack --dry-run --workspace "$NAME" 2>&1 | tee pack.txt
+          if [ "$NAME" = "@shdwsdk/sdk" ] && grep -qiE "ecologits|energy-model\.generated" pack.txt; then
+            echo "::error::@shdwsdk/sdk must not ship the EcoLogits-derived energy model"
+            exit 1
+          fi
+
+      - name: Publish with provenance
+        env:
+          NAME: ${{ steps.pkg.outputs.name }}
+        run: npm publish --workspace "$NAME" --provenance --access public
+
+      - name: Summary
+        env:
+          NAME: ${{ steps.pkg.outputs.name }}
+          VERSION: ${{ steps.pkg.outputs.version }}
+        run: |
+          echo "Published [$NAME@$VERSION](https://www.npmjs.com/package/$NAME/v/$VERSION) with provenance." >> "$GITHUB_STEP_SUMMARY"

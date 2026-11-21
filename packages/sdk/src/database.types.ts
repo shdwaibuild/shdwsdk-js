@@ -21,7 +21,30 @@ export type SubscriptionStatus =
 
 export type SubscriptionTier = "free" | "starter" | "scale";
 
-export type AIProvider = "openai" | "anthropic" | "gemini" | "custom";
+/**
+ * The model's vendor. The common ones are listed for autocompletion; any
+ * lowercase id (mistral, cohere, meta, deepseek, ...) is accepted.
+ */
+export type AIProvider =
+  | "openai"
+  | "anthropic"
+  | "gemini"
+  | "mistral"
+  | "cohere"
+  | "meta"
+  | "deepseek"
+  | "xai"
+  | "alibaba"
+  | "microsoft"
+  | "amazon"
+  | "custom"
+  | (string & {});
+
+/** Where the model ran. */
+export type AIHosting = "vendor_api" | "azure" | "aws_bedrock" | "gcp_vertex" | "self_hosted" | "other";
+
+/** The kind of model call. Energy for non-chat calls uses a FLOP-based estimate. */
+export type AIOperation = "chat" | "embedding" | "rerank" | "transcription" | "speech" | "image" | "ocr" | "moderation";
 
 export type EuAiRiskTier =
   | "minimal"
@@ -59,6 +82,21 @@ export interface Database {
           default_grid_region: string;
           public_trust_enabled: boolean;
           trust_contact_email?: string | null;
+          require_mfa?: boolean;
+          sso_domain?: string | null;
+          sso_provider_id?: string | null;
+          require_sso?: boolean;
+          /** The organization's own datacenter PUE for self-hosted models. */
+          self_hosted_pue?: number | null;
+          /** A platform account that manages client organizations. */
+          is_partner?: boolean;
+          /** The partner that manages this client organization. */
+          partner_org_id?: string | null;
+          /** Audit-log retention in months (13–120); null keeps everything. */
+          retention_months?: number | null;
+          legal_hold?: boolean;
+          legal_hold_reason?: string | null;
+          deletion_scheduled_for?: string | null;
           created_at: string;
         };
         Insert: {
@@ -85,6 +123,7 @@ export interface Database {
           default_grid_region?: string;
           public_trust_enabled?: boolean;
           trust_contact_email?: string | null;
+          self_hosted_pue?: number | null;
           created_at?: string;
         };
         Relationships: [];
@@ -130,6 +169,46 @@ export interface Database {
           }
         ];
       };
+      model_prices: {
+        Row: {
+          id: string;
+          /** null = SHDWsdk list price; set = the organization's own price. */
+          org_id: string | null;
+          provider: string;
+          model_prefix: string;
+          input_usd_per_mtok: number;
+          output_usd_per_mtok: number;
+          usd_per_audio_minute: number | null;
+          usd_per_image: number | null;
+          effective_from: string;
+          source_url: string | null;
+          notes: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          org_id: string;
+          provider: string;
+          model_prefix: string;
+          input_usd_per_mtok?: number;
+          output_usd_per_mtok?: number;
+          usd_per_audio_minute?: number | null;
+          usd_per_image?: number | null;
+          effective_from?: string;
+          source_url?: string | null;
+          notes?: string | null;
+        };
+        Update: {
+          input_usd_per_mtok?: number;
+          output_usd_per_mtok?: number;
+          usd_per_audio_minute?: number | null;
+          usd_per_image?: number | null;
+          effective_from?: string;
+          notes?: string | null;
+        };
+        Relationships: [];
+      };
       token_logs: {
         Row: {
           id: string;
@@ -141,7 +220,15 @@ export interface Database {
           estimated_energy_kwh: number;
           estimated_energy_kwh_min: number | null;
           estimated_energy_kwh_max: number | null;
-          energy_model_match: "exact" | "alias" | "normalized" | "family" | "fallback" | null;
+          energy_model_match:
+            | "exact"
+            | "alias"
+            | "normalized"
+            | "family"
+            | "fallback"
+            | "flops_estimate"
+            | "not_estimated"
+            | null;
           energy_methodology: string | null;
           carbon_gco2e: number;
           grid_region: string;
@@ -153,6 +240,16 @@ export interface Database {
           /** The organization's own customer this call served (pseudonymous id). */
           customer_ref?: string | null;
           ingest_source?: IngestSource | null;
+          hosting?: AIHosting | null;
+          operation?: AIOperation | null;
+          audio_seconds?: number | null;
+          image_count?: number | null;
+          /** A matter/project under customer_ref. */
+          matter_ref?: string | null;
+          trace_id?: string | null;
+          workflow_name?: string | null;
+          cost_usd?: number | null;
+          price_source?: "org" | "list" | null;
         };
         Insert: {
           id?: string;
@@ -518,6 +615,39 @@ export interface Database {
       };
     };
     Functions: {
+      org_usage_breakdown: {
+        Args: { p_org_id: string; p_start: string; p_end: string; p_dimension: string };
+        /** JSON; see UsageBreakdown in the web app. */
+        Returns: Record<string, unknown>;
+      };
+      partner_overview: {
+        Args: { p_partner_org_id: string; p_days?: number };
+        Returns: Record<string, unknown>;
+      };
+      partner_create_client_org: {
+        Args: { p_partner_org_id: string; p_name: string; p_slug: string };
+        Returns: Record<string, unknown>;
+      };
+      org_data_policy: { Args: { p_org_id: string }; Returns: Record<string, unknown> | null };
+      set_org_data_policy: {
+        Args: { p_org_id: string; p_retention_months: number | null; p_legal_hold: boolean; p_legal_hold_reason: string | null };
+        Returns: Record<string, unknown>;
+      };
+      schedule_org_deletion: { Args: { p_org_id: string; p_confirm_slug: string }; Returns: Record<string, unknown> };
+      cancel_org_deletion: { Args: { p_org_id: string }; Returns: Record<string, unknown> };
+      export_token_logs: {
+        Args: { p_org_id: string; p_after_seq?: number; p_limit?: number };
+        Returns: Record<string, unknown>;
+      };
+      org_access_status: {
+        Args: { p_org_id: string };
+        /** JSON; see OrgAccessStatus in the web app. */
+        Returns: Record<string, unknown>;
+      };
+      set_org_identity_policy: {
+        Args: { p_org_id: string; p_require_mfa: boolean; p_sso_domain: string | null; p_require_sso: boolean };
+        Returns: Record<string, unknown>;
+      };
       claim_disclosure_request: {
         Args: { p_token: string; p_org_id: string };
         Returns: string;

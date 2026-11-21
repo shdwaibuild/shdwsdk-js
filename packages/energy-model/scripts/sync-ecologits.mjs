@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // Generates the shared inference energy model from the vendored EcoLogits catalog.
-// Writes identical copies to the SDK and the Supabase Edge Functions _shared folder.
+// Writes identical copies to @shdwsdk/energy-model and the Supabase Edge Functions _shared folder.
 import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -8,13 +8,13 @@ import { fileURLToPath } from "node:url";
 const ECOLOGITS_VERSION = "0.11.3";
 
 const here = dirname(fileURLToPath(import.meta.url));
-const sdkRoot = resolve(here, "..");
-const repoRoot = resolve(sdkRoot, "../..");
+const pkgRoot = resolve(here, "..");
+const repoRoot = resolve(pkgRoot, "../..");
 const catalog = JSON.parse(
-  readFileSync(resolve(sdkRoot, "vendor/ecologits/models.json"), "utf8")
+  readFileSync(resolve(pkgRoot, "vendor/ecologits/models.json"), "utf8")
 );
 const retired = JSON.parse(
-  readFileSync(resolve(sdkRoot, "vendor/ecologits/retired-models.json"), "utf8")
+  readFileSync(resolve(pkgRoot, "vendor/ecologits/retired-models.json"), "utf8")
 );
 const template = readFileSync(resolve(here, "energy-engine.template.ts"), "utf8");
 
@@ -86,7 +86,7 @@ ${aliases.map((r) => `  ${JSON.stringify(r)},`).join("\n")}
 
 const output = template.replace("/* __DATA__ */", data);
 for (const target of [
-  resolve(sdkRoot, "src/energy-model.generated.ts"),
+  resolve(pkgRoot, "src/energy-model.generated.ts"),
   resolve(repoRoot, "supabase/functions/_shared/energy-model.generated.ts"),
 ]) {
   mkdirSync(dirname(target), { recursive: true });
