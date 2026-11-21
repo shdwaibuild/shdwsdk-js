@@ -4,7 +4,6 @@ import {
   SDK_VERSION,
   SSEStreamTokenAccumulator,
   ShdwTelemetryClient,
-  calculateFootprint,
   compileCycloneDxMlBom,
   compileSpdx3AiBom,
   computeComplianceReadinessScore,
@@ -58,26 +57,6 @@ describe("@shdwsdk/sdk — Resilient Non-Blocking Carbon Telemetry", () => {
     expect(finalized.promptTokens).toBe(42);
     expect(finalized.completionTokens).toBe(18);
     expect(finalized.isEstimatedFallback).toBe(false);
-  });
-
-  it("calculates EcoLogits/ML.ENERGY kWh and gCO2e across grid regions", () => {
-    const usEast = calculateFootprint({
-      modelName: "gpt-4o",
-      promptTokens: 10000,
-      completionTokens: 5000,
-      gridRegion: "us-east-1",
-    });
-    const euNorth = calculateFootprint({
-      modelName: "gpt-4o",
-      promptTokens: 10000,
-      completionTokens: 5000,
-      gridRegion: "eu-north-1",
-    });
-
-    expect(usEast.estimatedEnergyKwh).toBeGreaterThan(0);
-    expect(usEast.estimatedEnergyKwh).toBeCloseTo(euNorth.estimatedEnergyKwh, 6);
-    // Stockholm hydro/nuclear grid has much lower carbon intensity than US-East
-    expect(euNorth.carbonGco2e).toBeLessThan(usEast.carbonGco2e);
   });
 
   it("fails silently and never interrupts host application when telemetry server is down or times out", async () => {

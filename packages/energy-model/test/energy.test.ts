@@ -14,7 +14,7 @@ import {
 //                                       request_latency=1e9).energy
 // [provider, model, outputTokens, minKwh, maxKwh]
 // The server-side copies only exist in the private SHDWsdk monorepo; skip the
-// sync checks when the SDK is built on its own.
+// sync checks when the package is built on its own.
 const EDGE_SHARED = new URL("../../../supabase/functions/_shared/", import.meta.url);
 const itInMonorepo = existsSync(EDGE_SHARED) ? it : it.skip;
 
@@ -119,22 +119,6 @@ describe("EcoLogits inference energy model", () => {
     expect(edgeCopy).toBe(sdkCopy);
   });
 
-  itInMonorepo("keeps the Edge Function grid table in sync with GRID_REGION_FACTORS", () => {
-    const edge = readFileSync(
-      new URL("../../../supabase/functions/_shared/ingest.ts", import.meta.url),
-      "utf8"
-    );
-    const block = edge.slice(edge.indexOf("const GRID_INTENSITY_BY_REGION"));
-    const table = block.slice(block.indexOf("{") + 1, block.indexOf("};"));
-    const parsed = Object.fromEntries(
-      [...table.matchAll(/"([^"]+)":\s*([\d.]+)/g)].map((m) => [m[1], Number(m[2])])
-    );
-    const expected = Object.fromEntries(
-      Object.values(GRID_REGION_FACTORS).map((g) => [g.region, g.intensityGco2PerKwh])
-    );
-    expect(parsed).toEqual(expected);
-  });
-
   it("marks custom grid factors so the server accepts them", () => {
     const f = calculateFootprint({
       modelName: "gpt-4o",
@@ -145,5 +129,25 @@ describe("EcoLogits inference energy model", () => {
     });
     expect(f.gridRegion).toBe("custom");
     expect(f.gridIntensityGco2PerKwh).toBe(12);
+  });
+
+  it("calculates EcoLogits/ML.ENERGY kWh and gCO2e across grid regions", () => {
+    const usEast = calculateFootprint({
+      modelName: "gpt-4o",
+      promptTokens: 10000,
+      completionTokens: 5000,
+      gridRegion: "us-east-1",
+    });
+    const euNorth = calculateFootprint({
+      modelName: "gpt-4o",
+      promptTokens: 10000,
+      completionTokens: 5000,
+      gridRegion: "eu-north-1",
+    });
+
+    expect(usEast.estimatedEnergyKwh).toBeGreaterThan(0);
+    expect(usEast.estimatedEnergyKwh).toBeCloseTo(euNorth.estimatedEnergyKwh, 6);
+    // Stockholm hydro/nuclear grid has much lower carbon intensity than US-East
+    expect(euNorth.carbonGco2e).toBeLessThan(usEast.carbonGco2e);
   });
 });

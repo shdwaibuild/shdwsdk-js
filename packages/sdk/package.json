@@ -1,7 +1,7 @@
 {
   "name": "@shdwsdk/sdk",
-  "version": "1.8.0",
-  "description": "Resilient, non-blocking Scope 3 AI carbon & energy telemetry SDK for OpenAI, Anthropic, and Google Gemini.",
+  "version": "2.0.0",
+  "description": "Resilient, non-blocking Scope 3 AI carbon telemetry and AI-BOM SDK for OpenAI, Anthropic, Google Gemini and OpenTelemetry. MIT-licensed, zero dependencies.",
   "homepage": "https://www.shdwsdk.ai/docs",
   "repository": {
     "type": "git",
@@ -41,14 +41,12 @@
   "files": [
     "dist",
     "src",
-    "vendor/ecologits/LICENSE",
-    "vendor/ecologits/README.md"
+    "LICENSE"
   ],
   "scripts": {
     "build": "tsc -p tsconfig.json && tsc -p tsconfig.cjs.json && node -e \"require('fs').writeFileSync('dist/cjs/package.json', JSON.stringify({type:'commonjs'}))\"",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "vitest run",
-    "sync:ecologits": "node scripts/sync-ecologits.mjs"
+    "test": "vitest run"
   },
   "devDependencies": {
     "typescript": "^5.6.3",
@@ -57,7 +55,6 @@
   "keywords": [
     "ai-carbon",
     "scope-3",
-    "ecologits",
     "ml-energy",
     "ai-bom",
     "openai",
@@ -67,6 +64,10 @@
   ],
   "license": "MIT",
   "publishConfig": {
-    "access": "public"
+    "access": "public",
+    "provenance": true
+  },
+  "engines": {
+    "node": ">=20"
   }
 }

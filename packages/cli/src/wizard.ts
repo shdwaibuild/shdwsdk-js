@@ -4,12 +4,8 @@
 
 import { stdin as defaultInput, stdout as defaultOutput } from "node:process";
 import { createInterface } from "node:readline/promises";
-import {
-  GRID_REGION_FACTORS,
-  MODEL_ENERGY_COEFFICIENTS,
-  resolveGridRegionFactor,
-  resolveModelCoefficient,
-} from "@shdwsdk/sdk";
+import { GRID_REGION_FACTORS, resolveGridRegionFactor } from "@shdwsdk/sdk";
+import { MODEL_ENERGY_COEFFICIENTS, resolveModelCoefficient } from "@shdwsdk/energy-model";
 import { generateShdwBoilerplateFile } from "./codegen.js";
 import {
   DEFAULT_SHDW_INGEST_ENDPOINT,

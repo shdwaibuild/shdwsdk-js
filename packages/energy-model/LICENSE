@@ -1,0 +1,36 @@
+@shdwsdk/energy-model is distributed under two licenses, file by file:
+
+* src/energy-model.generated.ts (and its compiled output in dist/) contains
+  data and logic derived from EcoLogits (https://ecologits.ai) and is licensed
+  under the Mozilla Public License 2.0. The full text is in
+  vendor/ecologits/LICENSE and at https://mozilla.org/MPL/2.0/.
+
+* Every other file is licensed under the MIT License below.
+
+MPL-2.0 is a file-level license: you may combine this package with code under
+any license. If you distribute a modified version of an MPL-2.0 file, that
+file must stay under MPL-2.0 and its source must be available.
+
+-------------------------------------------------------------------------------
+
+MIT License
+
+Copyright (c) 2026 SHDWsdk
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.

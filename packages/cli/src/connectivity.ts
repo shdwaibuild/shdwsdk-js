@@ -4,7 +4,7 @@
 // an AbortController strictly clamped to <= 1500ms.
 // ============================================================================
 
-import { calculateFootprint, resolveModelCoefficient } from "@shdwsdk/sdk";
+import { calculateFootprint, resolveModelCoefficient } from "@shdwsdk/energy-model";
 
 export const DEFAULT_SHDW_INGEST_ENDPOINT =
   "https://www.shdwsdk.ai/api/v1/ingest-telemetry";

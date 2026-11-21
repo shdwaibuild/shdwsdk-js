@@ -4,12 +4,13 @@
   "description": "SHDWsdk JavaScript/TypeScript SDK and CLI",
   "workspaces": [
     "packages/sdk",
+    "packages/energy-model",
     "packages/cli"
   ],
   "scripts": {
-    "build": "npm run build --workspace=@shdwsdk/sdk && npm run build --workspace=@shdwsdk/cli",
-    "typecheck": "npm run build --workspace=@shdwsdk/sdk && npm run typecheck --workspaces",
-    "test": "npm run build --workspace=@shdwsdk/sdk && npm test --workspaces"
+    "build": "npm run build --workspace=@shdwsdk/sdk && npm run build --workspace=@shdwsdk/energy-model && npm run build --workspace=@shdwsdk/cli",
+    "typecheck": "npm run build --workspace=@shdwsdk/sdk && npm run build --workspace=@shdwsdk/energy-model && npm run typecheck --workspaces",
+    "test": "npm run build --workspace=@shdwsdk/sdk && npm run build --workspace=@shdwsdk/energy-model && npm test --workspaces"
   },
   "license": "MIT"
 }

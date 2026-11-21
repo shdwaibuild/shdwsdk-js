@@ -5,27 +5,13 @@
 
 export {
   GRID_REGION_FACTORS,
-  MODEL_ENERGY_COEFFICIENTS,
-  calculateFootprint,
   resolveGridRegionFactor,
-  resolveModelCoefficient,
-  type CarbonCalculationResult,
   type GridRegionCarbonFactor,
-  type ModelEnergyCoefficient,
-} from "./coefficients.js";
+} from "./grid.js";
 
-export {
-  ECOLOGITS_VERSION,
-  ENERGY_METHODOLOGY,
-  ENERGY_MODEL_CATALOG,
-  estimateInferenceEnergy,
-  resolveEnergyModel,
-  type EnergyModelEntry,
-  type EnergyModelMatch,
-  type EnergyProvider,
-  type EnergyRange,
-  type InferenceEnergyEstimate,
-} from "./energy-model.generated.js";
+// Client-side energy estimates (calculateFootprint, estimateInferenceEnergy,
+// MODEL_ENERGY_COEFFICIENTS, ...) moved to the optional @shdwsdk/energy-model
+// package in 2.0.0. The ingest server computes energy and carbon for every event.
 
 export {
   SSEStreamTokenAccumulator,
@@ -44,12 +30,15 @@ export {
   type ShdwDropReason,
   type ShdwQueueOptions,
   type ShdwTelemetryEvent,
+  type ShdwDataRegion,
+  INGEST_ENDPOINTS,
 } from "./queue.js";
 
 export {
   ShdwTelemetryClient,
   type ShdwClientConfig,
   type TrackCallMetadata,
+  type ShdwCallContext,
   type VectorStoreInstrumentationConfig,
 } from "./wrappers.js";
 
@@ -85,6 +74,8 @@ export {
 
 export type {
   AIProvider,
+  AIHosting,
+  AIOperation,
   AiBomInventoryItem,
   ApiKeyRow,
   ComplianceAssessmentRow,
@@ -108,3 +99,15 @@ export type {
   SubscriptionTier,
   TokenLogRow,
 } from "./database.types.js";
+
+export {
+  ISO_42001_ANNEX_A,
+  ISO_42001_EVIDENCE_LABELS,
+  ISO_42001_REFERENCE_URL,
+  evaluateIso42001,
+  type Iso42001Control,
+  type Iso42001Evidence,
+  type Iso42001EvidenceKey,
+  type Iso42001Result,
+  type Iso42001Support,
+} from "./iso42001.js";

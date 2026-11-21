@@ -1,0 +1,63 @@
+{
+  "name": "@shdwsdk/energy-model",
+  "version": "1.0.0",
+  "description": "Optional client-side AI inference energy and carbon estimates for @shdwsdk/sdk, based on the EcoLogits methodology.",
+  "homepage": "https://www.shdwsdk.ai/methodology",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/shdwaibuild/shdwsdk-js.git",
+    "directory": "packages/energy-model"
+  },
+  "bugs": {
+    "url": "https://github.com/shdwaibuild/shdwsdk-js/issues"
+  },
+  "type": "module",
+  "main": "./dist/cjs/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/cjs/index.js",
+      "default": "./dist/index.js"
+    }
+  },
+  "sideEffects": false,
+  "files": [
+    "dist",
+    "src",
+    "LICENSE",
+    "vendor/ecologits/LICENSE",
+    "vendor/ecologits/README.md"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json && tsc -p tsconfig.cjs.json && node -e \"require('fs').writeFileSync('dist/cjs/package.json', JSON.stringify({type:'commonjs'}))\"",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run",
+    "sync:ecologits": "node scripts/sync-ecologits.mjs"
+  },
+  "dependencies": {
+    "@shdwsdk/sdk": "^2.0.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.3",
+    "vitest": "^2.1.5"
+  },
+  "keywords": [
+    "ai-carbon",
+    "scope-3",
+    "ecologits",
+    "ml-energy",
+    "llm-energy",
+    "shdwsdk"
+  ],
+  "license": "(MIT AND MPL-2.0)",
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

@@ -8,8 +8,8 @@ import {
   computeSyncPromptHash,
   UNVERSIONED_PROMPT,
 } from "./aibom.js";
-import { calculateFootprint } from "./coefficients.js";
-import type { AIProvider, EuAiRiskTier } from "./database.types.js";
+import { resolveGridRegionFactor } from "./grid.js";
+import type { AIHosting, AIOperation, AIProvider, EuAiRiskTier } from "./database.types.js";
 import {
   SSEStreamTokenAccumulator,
   inferProviderFromModel,
@@ -40,6 +40,25 @@ export interface ShdwClientConfig extends ShdwQueueOptions {
    * statements. Use pseudonymous account ids, never emails.
    */
   resolveCustomerRef?: () => string | undefined;
+  /**
+   * Returns attribution for the current call from your request context: the
+   * customer, a matter/project under that customer, and the agent workflow or
+   * trace it belongs to. Values passed per call take precedence.
+   */
+  resolveContext?: () => ShdwCallContext | undefined;
+  /** Where your models run by default (e.g. "azure", "self_hosted"). Auto-detected when unset. */
+  defaultHosting?: AIHosting;
+}
+
+/** Attribution for one model call. Use pseudonymous ids, never emails or names. */
+export interface ShdwCallContext {
+  customerRef?: string;
+  matterRef?: string;
+  workflowName?: string;
+  /** W3C trace id (32 hex chars) or any stable id for one agent run. */
+  traceId?: string;
+  /** Partner accounts: the client organization's slug in SHDWsdk. */
+  orgSlug?: string;
 }
 
 export interface VectorStoreInstrumentationConfig {
@@ -61,6 +80,12 @@ export interface TrackCallMetadata {
   euAiRiskTier?: EuAiRiskTier;
   /** Your customer's account id for this call (overrides resolveCustomerRef). */
   customerRef?: string;
+  matterRef?: string;
+  workflowName?: string;
+  traceId?: string;
+  orgSlug?: string;
+  hosting?: AIHosting;
+  operation?: AIOperation;
 }
 
 function isAsyncIterable(value: unknown): value is AsyncIterable<unknown> {
@@ -124,7 +149,7 @@ function extractRequestHints(args: readonly unknown[]): {
   }
 }
 
-/** Region used only for the SDK's local estimate when none is configured. */
+/** Grid region whose factor is sent when no region or custom factor is configured. */
 const LOCAL_ESTIMATE_REGION = "us-east-1";
 
 export class ShdwTelemetryClient {
@@ -135,6 +160,8 @@ export class ShdwTelemetryClient {
   private readonly defaultEuAiRiskTier: EuAiRiskTier;
   private activeVectorStore: VectorStoreInstrumentationConfig | null = null;
   private readonly resolveCustomerRef?: () => string | undefined;
+  private readonly resolveContext?: () => ShdwCallContext | undefined;
+  private readonly defaultHosting?: AIHosting;
 
   constructor(config: ShdwClientConfig) {
     this.queue = new ResilientTelemetryQueue(config);
@@ -144,6 +171,25 @@ export class ShdwTelemetryClient {
       config.defaultWorkloadName ?? "Production AI Service (Auto-Discovered)";
     this.defaultEuAiRiskTier = config.defaultEuAiRiskTier ?? "limited";
     this.resolveCustomerRef = config.resolveCustomerRef;
+    this.resolveContext = config.resolveContext;
+    this.defaultHosting = config.defaultHosting;
+  }
+
+  /** Per-call values win over the context resolver; never throws. */
+  private currentContext(explicit?: ShdwCallContext): ShdwCallContext {
+    let ctx: ShdwCallContext | undefined;
+    try {
+      ctx = this.resolveContext?.();
+    } catch {
+      ctx = undefined;
+    }
+    return {
+      customerRef: this.currentCustomerRef(explicit?.customerRef ?? ctx?.customerRef),
+      matterRef: explicit?.matterRef ?? ctx?.matterRef,
+      workflowName: explicit?.workflowName ?? ctx?.workflowName,
+      traceId: explicit?.traceId ?? ctx?.traceId,
+      orgSlug: explicit?.orgSlug ?? ctx?.orgSlug,
+    };
   }
 
   private currentCustomerRef(explicit?: string): string | undefined {
@@ -194,18 +240,31 @@ export class ShdwTelemetryClient {
     euAiRiskTier?: EuAiRiskTier;
     /** Your customer's account id for this call. */
     customerRef?: string;
+    /** A matter/project id under the customer. */
+    matterRef?: string;
+    workflowName?: string;
+    traceId?: string;
+    /** Partner accounts: the client organization's slug. */
+    orgSlug?: string;
+    hosting?: AIHosting;
+    operation?: AIOperation;
+    /** Audio length for transcription/speech calls. */
+    audioSeconds?: number;
+    /** Images generated or processed. */
+    imageCount?: number;
   }): void {
     try {
-      const footprint = calculateFootprint({
-        modelName: params.modelName,
-        promptTokens: params.promptTokens,
-        completionTokens: params.completionTokens,
-        // Local estimate only; the server recomputes with the reported region.
-        gridRegion: params.gridRegion ?? this.defaultGridRegion ?? LOCAL_ESTIMATE_REGION,
-        customGridIntensityGco2Kwh: this.customGridIntensityGco2Kwh,
-        provider: params.provider,
-        latencyMs: params.latencyMs,
-      });
+      // Energy and carbon are computed by the ingest server (same EcoLogits
+      // model, organization grid region). The SDK only reports the grid
+      // region or a custom grid factor when one is configured.
+      const customGrid =
+        typeof this.customGridIntensityGco2Kwh === "number" &&
+        this.customGridIntensityGco2Kwh > 0
+          ? this.customGridIntensityGco2Kwh
+          : undefined;
+      const grid = resolveGridRegionFactor(
+        params.gridRegion ?? this.defaultGridRegion ?? LOCAL_ESTIMATE_REGION
+      );
 
       const hasVector =
         params.vectorDbConnected ?? Boolean(this.activeVectorStore);
@@ -216,17 +275,11 @@ export class ShdwTelemetryClient {
           params.provider ?? inferProviderFromModel(params.modelName),
         prompt_tokens: Math.max(0, Math.floor(params.promptTokens)),
         completion_tokens: Math.max(0, Math.floor(params.completionTokens)),
-        estimated_energy_kwh: footprint.estimatedEnergyKwh,
-        estimated_energy_kwh_min: footprint.energyKwhRange.min,
-        estimated_energy_kwh_max: footprint.energyKwhRange.max,
-        energy_model_match: footprint.modelMatch,
-        energy_methodology: footprint.methodology,
-        carbon_gco2e: footprint.carbonGco2e,
         // Omitted when not configured so the organization's Settings region applies.
         ...(this.customGridIntensityGco2Kwh !== undefined || params.gridRegion || this.defaultGridRegion
-          ? { grid_region: footprint.gridRegion }
+          ? { grid_region: customGrid !== undefined ? "custom" : grid.region }
           : {}),
-        grid_intensity_gco2_kwh: footprint.gridIntensityGco2PerKwh,
+        grid_intensity_gco2_kwh: customGrid ?? grid.intensityGco2PerKwh,
         is_streaming: Boolean(params.isStreaming),
         latency_ms: params.latencyMs,
         timestamp: new Date().toISOString(),
@@ -250,8 +303,23 @@ export class ShdwTelemetryClient {
           : null,
         eu_ai_risk_tier: params.euAiRiskTier ?? this.defaultEuAiRiskTier,
       };
-      const customerRef = this.currentCustomerRef(params.customerRef);
-      if (customerRef) event.customer_ref = customerRef;
+      const ctx = this.currentContext({
+        customerRef: params.customerRef,
+        matterRef: params.matterRef,
+        workflowName: params.workflowName,
+        traceId: params.traceId,
+        orgSlug: params.orgSlug,
+      });
+      if (ctx.orgSlug) event.org_slug = ctx.orgSlug;
+      if (ctx.customerRef) event.customer_ref = ctx.customerRef;
+      if (ctx.matterRef) event.matter_ref = ctx.matterRef;
+      if (ctx.workflowName) event.workflow_name = ctx.workflowName;
+      if (ctx.traceId) event.trace_id = ctx.traceId;
+      const hosting = params.hosting ?? this.defaultHosting;
+      if (hosting) event.hosting = hosting;
+      if (params.operation) event.operation = params.operation;
+      if (params.audioSeconds !== undefined) event.audio_seconds = params.audioSeconds;
+      if (params.imageCount !== undefined) event.image_count = params.imageCount;
 
       this.queue.enqueue(event);
     } catch {
@@ -276,7 +344,7 @@ export class ShdwTelemetryClient {
     });
     const recordUsageFn = this.recordUsage.bind(this);
     const region = metadata?.gridRegion ?? this.defaultGridRegion;
-    const customerRef = this.currentCustomerRef(metadata?.customerRef);
+    const ctx = this.currentContext(metadata);
     const start = startedAtMs ?? Date.now();
 
     return {
@@ -307,7 +375,13 @@ export class ShdwTelemetryClient {
               vectorDbSourceUrl: metadata?.vectorDbSourceUrl,
               embeddingModelId: metadata?.embeddingModelId,
               euAiRiskTier: metadata?.euAiRiskTier,
-              customerRef,
+              customerRef: ctx.customerRef,
+              matterRef: ctx.matterRef,
+              workflowName: ctx.workflowName,
+              traceId: ctx.traceId,
+              orgSlug: ctx.orgSlug,
+              hosting: metadata?.hosting,
+              operation: metadata?.operation,
             });
           } catch {
             // Strictly fail-silent
@@ -340,7 +414,9 @@ export class ShdwTelemetryClient {
         vectorDbSourceUrl: metadata?.vectorDbSourceUrl,
         embeddingModelId: metadata?.embeddingModelId,
         euAiRiskTier: metadata?.euAiRiskTier,
-        customerRef: this.currentCustomerRef(metadata?.customerRef),
+        ...this.currentContext(metadata),
+        hosting: metadata?.hosting,
+        operation: metadata?.operation,
       };
 
       const result = await fn(...args);
@@ -378,6 +454,12 @@ export class ShdwTelemetryClient {
               embeddingModelId: effectiveMeta.embeddingModelId,
               euAiRiskTier: effectiveMeta.euAiRiskTier,
               customerRef: effectiveMeta.customerRef,
+              matterRef: effectiveMeta.matterRef,
+              workflowName: effectiveMeta.workflowName,
+              traceId: effectiveMeta.traceId,
+              orgSlug: effectiveMeta.orgSlug,
+              hosting: effectiveMeta.hosting,
+              operation: effectiveMeta.operation,
             });
           } catch {
             // Fail-silent
