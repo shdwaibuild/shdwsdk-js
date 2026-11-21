@@ -1,6 +1,6 @@
 {
   "name": "@shdwsdk/sdk",
-  "version": "1.7.2",
+  "version": "1.8.0",
   "description": "Resilient, non-blocking Scope 3 AI carbon & energy telemetry SDK for OpenAI, Anthropic, and Google Gemini.",
   "homepage": "https://www.shdwsdk.ai/docs",
   "repository": {

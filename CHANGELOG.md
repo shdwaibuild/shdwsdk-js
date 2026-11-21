@@ -1,5 +1,11 @@
 # Changelog
 
+## @shdwsdk/sdk 1.8.0 (2026-11-21)
+
+- **Delivery reports.** The SDK sends its delivery counters (events delivered, dropped by reason, retried, queue backlog) with normal batches about once a minute, or on their own every five minutes when idle and there is something new. They power drop rates in the SHDWsdk developer console. Counters only, never event contents. Opt out with `deliveryReports: false`.
+- `getDeliveryStats()` now includes `retried`.
+- New exported types: `ShdwDeliveryReport`, `ShdwDropReason`.
+
 ## @shdwsdk/sdk 1.7.2 · @shdwsdk/cli 1.2.2 (2026-11-20)
 
 **@shdwsdk/sdk 1.7.2**: packaging only. The npm page now has a README, license and links to this repository. No runtime changes.
