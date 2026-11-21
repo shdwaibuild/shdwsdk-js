@@ -59,6 +59,30 @@ export interface ShdwQueueOptions {
    * reporting coverage without the SDK ever interrupting the request path.
    */
   onDeliveryFailure?: (failure: ShdwDeliveryFailure) => void;
+  /**
+   * Send delivery counters (delivered, dropped by reason, retried) to SHDWsdk
+   * so the developer console can show real drop rates. Counters only, never
+   * payloads. Defaults to true.
+   */
+  deliveryReports?: boolean;
+}
+
+/** Why events were dropped, as reported to the developer console. */
+export type ShdwDropReason =
+  | "buffer_overflow"
+  | "rejected_auth"
+  | "rejected_payload"
+  | "rejected_other";
+
+/** Counters sent with telemetry so the developer console can show drop rates. */
+export interface ShdwDeliveryReport {
+  sdk: "sdk-js";
+  sdk_version: string;
+  delivered: number;
+  dropped: number;
+  retried: number;
+  drop_reasons: Partial<Record<ShdwDropReason, number>>;
+  pending: number;
 }
 
 export interface ShdwDeliveryFailure {
@@ -73,17 +97,30 @@ export interface ShdwDeliveryStats {
   queued: number;
   delivered: number;
   dropped: number;
+  /** Events re-queued after a timeout, network error, 429 or 5xx. */
+  retried: number;
   pending: number;
   lastFailureStatus: number | null;
   /** delivered / (delivered + dropped); 1 when nothing has been attempted yet */
   coverageRatio: number;
 }
 
-export const SDK_VERSION = "1.7.2";
+export const SDK_VERSION = "1.8.0";
 
 const DEFAULT_INGEST_ENDPOINT =
   "https://www.shdwsdk.ai/api/v1/ingest-telemetry";
 const MAX_ALLOWED_TIMEOUT_MS = 1500;
+/** Counters ride along with a batch at most this often... */
+const REPORT_WITH_BATCH_MS = 60_000;
+/** ...and are sent on their own when idle, only if there is something to report. */
+const REPORT_WHEN_IDLE_MS = 300_000;
+
+function dropReasonFor(failure: ShdwDeliveryFailure): ShdwDropReason {
+  if (failure.reason === "buffer_overflow") return "buffer_overflow";
+  if (failure.status === 401 || failure.status === 403) return "rejected_auth";
+  if (failure.status === 400 || failure.status === 413 || failure.status === 422) return "rejected_payload";
+  return "rejected_other";
+}
 
 export class ResilientTelemetryQueue {
   private readonly apiKey: string;
@@ -96,7 +133,11 @@ export class ResilientTelemetryQueue {
   private queuedCount = 0;
   private deliveredCount = 0;
   private droppedCount = 0;
+  private retriedCount = 0;
   private lastFailureStatus: number | null = null;
+  private readonly deliveryReports: boolean;
+  private unreported = { delivered: 0, dropped: 0, retried: 0, reasons: {} as Partial<Record<ShdwDropReason, number>> };
+  private lastReportAt = Date.now();
   private buffer: ShdwTelemetryEvent[] = [];
   private flushTimer: ReturnType<typeof setInterval> | null = null;
   private isFlushing = false;
@@ -115,6 +156,7 @@ export class ResilientTelemetryQueue {
     this.fetchImpl = options.customFetch ?? globalThis.fetch.bind(globalThis);
     this.onEventQueued = options.onEventQueued;
     this.onDeliveryFailure = options.onDeliveryFailure;
+    this.deliveryReports = options.deliveryReports !== false;
 
     const intervalMs = Math.max(500, options.flushIntervalMs ?? 3000);
     this.startBackgroundTimer(intervalMs);
@@ -200,12 +242,23 @@ export class ResilientTelemetryQueue {
    * Never throws or rejects.
    */
   public async flush(): Promise<void> {
-    if (this.isFlushing || this.buffer.length === 0) {
+    if (this.isFlushing) {
+      return;
+    }
+    const now = Date.now();
+    const hasUnreported = this.hasUnreportedCounters();
+    const reportDue =
+      this.deliveryReports &&
+      hasUnreported &&
+      (now - this.lastReportAt >= (this.buffer.length > 0 ? REPORT_WITH_BATCH_MS : REPORT_WHEN_IDLE_MS) ||
+        (this.buffer.length > 0 && this.unreported.dropped > 0));
+    if (this.buffer.length === 0 && !reportDue) {
       return;
     }
 
     this.isFlushing = true;
     const batch = this.buffer.splice(0, this.batchSize);
+    const report = reportDue ? this.buildReport() : null;
     const controller = new AbortController();
     const timeoutId = setTimeout(() => {
       try {
@@ -223,23 +276,28 @@ export class ResilientTelemetryQueue {
           "X-SHDW-Key": this.apiKey,
           "X-SHDW-SDK-Version": SDK_VERSION,
         },
-        body: JSON.stringify({ events: batch }),
+        body: JSON.stringify(report ? { events: batch, delivery: report } : { events: batch }),
         signal: controller.signal,
         keepalive: true,
       });
 
       if (res.ok) {
         this.deliveredCount += batch.length;
+        this.unreported.delivered += batch.length;
+        if (report) this.markReported(report);
       } else if (res.status >= 500 || res.status === 429) {
         this.requeueOrDrop(batch);
       } else {
         // 4xx (bad key, wrong endpoint, malformed payload) will not succeed on
         // retry. Count it so the gap is visible instead of silently vanishing.
-        this.recordDrop({
-          reason: "rejected",
-          status: res.status,
-          droppedEvents: batch.length,
-        });
+        // Unreported counters are kept and sent with the next accepted request.
+        if (batch.length > 0) {
+          this.recordDrop({
+            reason: "rejected",
+            status: res.status,
+            droppedEvents: batch.length,
+          });
+        }
       }
     } catch {
       // CRITICAL ARCHITECTURAL GUARANTEE:
@@ -251,8 +309,42 @@ export class ResilientTelemetryQueue {
     }
   }
 
+  private hasUnreportedCounters(): boolean {
+    const u = this.unreported;
+    return u.delivered + u.dropped + u.retried > 0;
+  }
+
+  private buildReport(): ShdwDeliveryReport {
+    return {
+      sdk: "sdk-js",
+      sdk_version: SDK_VERSION,
+      delivered: this.unreported.delivered,
+      dropped: this.unreported.dropped,
+      retried: this.unreported.retried,
+      drop_reasons: { ...this.unreported.reasons },
+      pending: this.buffer.length,
+    };
+  }
+
+  /** Subtracts what was just reported, keeping anything counted meanwhile. */
+  private markReported(report: ShdwDeliveryReport): void {
+    const u = this.unreported;
+    u.delivered = Math.max(0, u.delivered - report.delivered);
+    u.dropped = Math.max(0, u.dropped - report.dropped);
+    u.retried = Math.max(0, u.retried - report.retried);
+    for (const [k, n] of Object.entries(report.drop_reasons) as [ShdwDropReason, number][]) {
+      const left = (u.reasons[k] ?? 0) - n;
+      if (left > 0) u.reasons[k] = left;
+      else delete u.reasons[k];
+    }
+    this.lastReportAt = Date.now();
+  }
+
   private requeueOrDrop(batch: ShdwTelemetryEvent[]): void {
+    if (batch.length === 0) return;
     if (this.buffer.length < 450) {
+      this.retriedCount += batch.length;
+      this.unreported.retried += batch.length;
       this.buffer.unshift(...batch);
     } else {
       this.recordDrop({ reason: "buffer_overflow", droppedEvents: batch.length });
@@ -262,6 +354,9 @@ export class ResilientTelemetryQueue {
   private recordDrop(failure: ShdwDeliveryFailure): void {
     try {
       this.droppedCount += failure.droppedEvents;
+      this.unreported.dropped += failure.droppedEvents;
+      const reason = dropReasonFor(failure);
+      this.unreported.reasons[reason] = (this.unreported.reasons[reason] ?? 0) + failure.droppedEvents;
       if (failure.status !== undefined) {
         this.lastFailureStatus = failure.status;
       }
@@ -290,6 +385,7 @@ export class ResilientTelemetryQueue {
       queued: this.queuedCount,
       delivered: this.deliveredCount,
       dropped: this.droppedCount,
+      retried: this.retriedCount,
       pending: this.buffer.length,
       lastFailureStatus: this.lastFailureStatus,
       coverageRatio: attempted === 0 ? 1 : this.deliveredCount / attempted,

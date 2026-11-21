@@ -39,7 +39,9 @@ export {
   ResilientTelemetryQueue,
   SDK_VERSION,
   type ShdwDeliveryFailure,
+  type ShdwDeliveryReport,
   type ShdwDeliveryStats,
+  type ShdwDropReason,
   type ShdwQueueOptions,
   type ShdwTelemetryEvent,
 } from "./queue.js";

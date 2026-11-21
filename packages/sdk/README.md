@@ -93,6 +93,7 @@ finds AI SDKs, models and vector databases declared in your manifests, so your A
 | Input / output token counts | Completions |
 | Grid region and workload name you configure | API keys for your AI providers |
 | Optional one-way prompt fingerprint (SHA-256) | User emails or personal data |
+| Delivery counters: delivered, dropped by reason, retried | |
 | Optional customer reference you choose | |
 
 ## Built to stay out of your way
@@ -100,6 +101,7 @@ finds AI SDKs, models and vector databases declared in your manifests, so your A
 - **Off the request path.** Events are queued and sent in the background, so your AI calls never wait for telemetry.
 - **Fail-silent.** Delivery has a hard 1.5 s timeout and never throws into your code. If SHDWsdk is unreachable, your app doesn't notice.
 - **Retries with backoff.** Transient 5xx and 429 responses are retried; `getDeliveryStats()` shows what happened.
+- **Visible drop rates.** From 1.8.0 the SDK sends its delivery counters (counts only) about once a minute, so the [developer console](https://www.shdwsdk.ai/docs/developer-console) can show exactly what never arrived. Opt out with `deliveryReports: false`.
 
 ## Methodology
 
